@@ -1646,6 +1646,21 @@ function init() {
   initRecords();
 }
 
+// ==================== 预置历史故障记录（所有人可见） ====================
+const BUILTIN_RECORDS = [
+  {id:-1,date:'2023-09',system:'集约话务平台',level:3,symptom:'多省无声/断续/无法挂机，持续多日反复',cause:'北京大区东四节点网络波动/传输设备板卡故障',resolve:'话务切换到瀛海节点，传输板卡更换',duration:'',impact:'多日反复，影响严重',source:'DOC05-2023年集约平台sheet',lessons:'',author:'',builtin:true},
+  {id:-2,date:'2023-10',system:'集约话务平台',level:1,symptom:'签入失败"获取签入地址失败"',cause:'ctg-cache连接数超出导致接口异常',resolve:'重启恢复',duration:20,impact:'约20min',source:'DOC05-2023年集约平台sheet',lessons:'缓存连接数需定期监控',author:'',builtin:true},
+  {id:-3,date:'2023-10',system:'集约IVR平台',level:1,symptom:'IVR流程异常，无法进入人工',cause:'发版后安防判断开关少判断一个参数，正常用户被当安防用户处理',resolve:'紧急发版修复',duration:40,impact:'约40min',source:'DOC05-2023年集约平台sheet',lessons:'发版需完整回归测试',author:'',builtin:true},
+  {id:-4,date:'2023-11',system:'集约IVR平台',level:3,symptom:'安防判断异常导致涉诈用户走错流程，持续约5天',cause:'发版后安防判断做反导致',resolve:'发版修复',duration:7200,impact:'约5天',source:'DOC05-2023年集约平台sheet',lessons:'发版变更必须灰度验证',author:'',builtin:true},
+  {id:-5,date:'2023-09',system:'即时通信',level:1,symptom:'无法发送信息/文件打开无内容，持续多次',cause:'天翼云FTP组件无法正常调用/云上数据库不稳定',resolve:'改连接池参数/FTP组件修复',duration:'',impact:'累计影响时间长',source:'DOC05-2023年系统平台sheet',lessons:'云端组件需备援方案',author:'',builtin:true},
+  {id:-6,date:'2023全年',system:'在线客服/远程柜台',level:1,symptom:'不进用户/采集认证失败/无法接入人工',cause:'集团侧故障（多次），多数未反馈原因',resolve:'集团处理',duration:'',impact:'频繁出现',source:'DOC05-2023年系统平台sheet',lessons:'集团侧故障需建立通报机制',author:'',builtin:true},
+  {id:-7,date:'2024-04',system:'智能语音导航',level:3,symptom:'查话费/查流量场景异常，提示"正在查询请稍后"后静音',cause:'—',resolve:'—',duration:623,impact:'约10h23min',source:'DOC05-2024年系统平台sheet',lessons:'',author:'',builtin:true},
+  {id:-8,date:'2024-10',system:'集约IVR平台',level:4,symptom:'智能语音导航故障，查话费查流量无结果',cause:'—',resolve:'—',duration:19244,impact:'约13天4h44min',source:'DOC05-2024年汇总表',lessons:'智能导航需建立快速降级预案',author:'',builtin:true},
+  {id:-9,date:'2025-01',system:'华为云',level:1,symptom:'华为云镜像版本问题导致操作异常',cause:'华为云镜像版本问题',resolve:'华为云处理',duration:'',impact:'短期',source:'DOC05-2025年系统平台sheet',lessons:'云平台变更需提前知会',author:'',builtin:true},
+  {id:-10,date:'2023全年',system:'CRM/BSS3.0',level:1,symptom:'查询慢/办理失败/接口异常（多次）',cause:'EOP网络问题/接口异常/思特奇处理',resolve:'集团或思特奇处理后恢复',duration:'',impact:'频繁出现',source:'DOC05-2023年系统平台sheet',lessons:'EOP网络需常态化监控',author:'',builtin:true},
+  {id:-11,date:'2026-06-04',system:'外部故障-核心网',level:2,symptom:'10%移动用户无5G信号无法接打电话，10000号1.5h来话10万通（日常5万/天），接通率降至30%，在线客服接通率50%，IVR接口拥塞导致无法查询办理',cause:'省内核心网故障，故障恢复后IVR首层接口调用限流（默认800/分钟）导致拥塞',resolve:'上挂拦截音告知用户网络故障；后续申请信息化在省DCOOS平台调整3类9个接口流控',duration:90,impact:'1.5h，接通率降至30%，来话量翻倍',source:'DOC06',lessons:'提前放大接口应量，建立外部故障应急联动机制',author:'',builtin:true}
+];
+
 // ==================== 故障记录功能 ====================
 const RECORD_KEY = 'fault_records_v1';
 
@@ -1662,6 +1677,15 @@ function showToast(msg) {
 }
 
 function getRecords() {
+  // 合并预置历史记录 + 用户新增记录
+  let userRecords = [];
+  try {
+    userRecords = JSON.parse(localStorage.getItem(RECORD_KEY)) || [];
+  } catch(e) { userRecords = []; }
+  return [...BUILTIN_RECORDS, ...userRecords];
+}
+
+function getUserRecords() {
   try {
     return JSON.parse(localStorage.getItem(RECORD_KEY)) || [];
   } catch(e) { return []; }
@@ -1708,7 +1732,7 @@ function saveRecord() {
     author: document.getElementById('recAuthor').value.trim(),
     createdAt: new Date().toISOString()
   };
-  const records = getRecords();
+  const records = getUserRecords();
   records.unshift(rec);
   saveRecordsToStorage(records);
   clearRecordForm();
@@ -1718,8 +1742,9 @@ function saveRecord() {
 }
 
 function deleteRecord(id) {
+  if (id < 0) { showToast('历史预置记录不可删除'); return; }
   if (!confirm('确认删除此条记录？')) return;
-  const records = getRecords().filter(r => r.id !== id);
+  const records = getUserRecords().filter(r => r.id !== id);
   saveRecordsToStorage(records);
   renderRecords();
   renderRecordStats();
@@ -1809,7 +1834,7 @@ function renderRecords() {
   listEl.innerHTML = records.map(r => `
     <div class="record-card" style="border-left-color:${r.level>=4?'var(--danger)':r.level>=3?'var(--warning)':r.level>=2?'#f39c12':'var(--info)'}">
       <div class="rec-header">
-        <span class="rec-title">${esc(r.system)}</span>
+        <span class="rec-title">${esc(r.system)}${r.builtin?' <span style="font-size:11px;background:var(--primary-light);color:#fff;padding:1px 6px;border-radius:3px;vertical-align:middle">历史</span>':''}</span>
         <span class="level-badge level-${r.level}">${levelNames[r.level]||'未知'}</span>
       </div>
       <div class="rec-meta">
@@ -1825,9 +1850,9 @@ function renderRecords() {
         ${r.source ? `<div><b>依据：</b><span style="color:var(--text-light)">${esc(r.source)}</span></div>` : ''}
         ${r.lessons ? `<div><b>教训：</b><span style="color:var(--warning)">${esc(r.lessons)}</span></div>` : ''}
       </div>
-      <div style="text-align:right;margin-top:8px">
+      ${!r.builtin ? `<div style="text-align:right;margin-top:8px">
         <button class="btn btn-sm btn-outline" style="color:var(--danger);border-color:var(--danger)" onclick="deleteRecord(${r.id})">删除</button>
-      </div>
+      </div>` : ''}
     </div>
   `).join('');
 }
